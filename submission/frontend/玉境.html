@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<meta name="theme-color" content="#1a1a1a"/>
+<title>玉境 — 设计·探索·品读</title>
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { bg:'#1a1a1a', card:'#262626', border:'#333333', jade:'#4ade80', 'jade-deep':'#22c55e', gold:'#fbbf24', seal:'#dc2626', fg1:'#f5f5f4', fg2:'#a8a29e', fg3:'#57534e' },
+    fontFamily: { display:['"Noto Serif SC"','serif'], calligraphy:['"Ma Shan Zheng"','cursive'], body:['"Noto Sans SC"','sans-serif'] }
+  }}
+}
+</script>
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- html-to-image -->
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600;700;900&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans SC',sans-serif;background:#1a1a1a;color:#f5f5f4;overflow:hidden;height:100vh;-webkit-tap-highlight-color:transparent}
+.tab-content{display:none;overflow-y:auto}
+.tab-content.active{display:block;height:100%}
+/* ripple */
+.ripple{position:absolute;border-radius:50%;background:radial-gradient(circle,rgba(74,222,128,.35) 0%,rgba(74,222,128,0) 70%);transform:scale(0);animation:ripple .45s ease-out forwards;pointer-events:none}
+@keyframes ripple{to{transform:scale(2.5);opacity:0}}
+/* spinner */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{animation:spin 1.2s linear infinite}
+/* fadeIn */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+/* toast */
+@keyframes toastIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+/* Leaflet dark */
+.leaflet-container{background:#1a1a1a!important}
+.leaflet-control-zoom a{background:#262626!important;color:#f5f5f4!important;border-color:#333!important}
+.leaflet-popup-content-wrapper{background:#262626!important;color:#f5f5f4!important;border-radius:12px!important;border:1px solid #333!important}
+.leaflet-popup-tip{background:#262626!important}
+.leaflet-popup-close-button{color:#a8a29e!important}
+/* card capture */
+.card-capture{max-width:420px;width:100%;margin:0 auto;background:#1a1a1a}
+.card-inner{background:#262626;border:1px solid #333;border-radius:16px;overflow:hidden}
+/* range slider */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;background:#333;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#4ade80;border:3px solid #1a1a1a;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+/* scrollbar */
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+/* safe area */
+.safe-bottom{padding-bottom:env(safe-area-inset-bottom,8px)}
+.no-scrollbar::-webkit-scrollbar{display:none}
+</style>
+</head>
+<body class="font-body">
+
+<!-- ═══ HEADER ═══ -->
+<header class="fixed top-0 inset-x-0 z-20 bg-bg/95 backdrop-blur-sm border-b border-border/50">
+  <div class="text-center py-2.5 px-4 relative" id="headerContent">
+    <h1 class="font-display text-lg font-bold inline-flex items-center gap-2" id="headerTitle">玉境</h1>
+    <p class="text-[10px] text-fg3 mt-0.5" id="headerSub">设计玉器 · 探索玉路 · 品读玉典</p>
+    <button onclick="openKeySettings()" title="设置 API Key"
+      class="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-full bg-card border border-border text-fg2 active:scale-95 transition-transform">
+      ⚙️<span id="keyDot" class="absolute top-1 right-1 w-2 h-2 rounded-full bg-seal"></span>
+    </button>
+  </div>
+</header>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<main class="pt-14 pb-16 h-screen overflow-hidden">
+
+  <!-- TAB 1: Dynasty Filter -->
+  <div class="tab-content active overflow-y-auto h-full" id="tab-dynasty">
+    <div class="px-4 py-4 space-y-4 max-w-lg mx-auto" id="dynastyContent"></div>
+  </div>
+
+  <!-- TAB 2: Silk Road Map -->
+  <div class="tab-content h-full" id="tab-silkroad">
+    <div class="flex flex-col h-full" id="silkroadContent"></div>
+  </div>
+
+  <!-- TAB 3: Story Generator -->
+  <div class="tab-content overflow-y-auto h-full" id="tab-story">
+    <div class="px-4 py-4 space-y-4 max-w-lg mx-auto" id="storyContent"></div>
+  </div>
+</main>
+
+<!-- ═══ TAB BAR ═══ -->
+<nav class="fixed bottom-0 inset-x-0 z-20 bg-card/95 backdrop-blur-xl border-t border-border safe-bottom">
+  <div class="flex items-center justify-around h-14 max-w-lg mx-auto">
+    <button class="tab-btn flex flex-col items-center gap-0.5 px-4 py-1.5 min-w-[72px] rounded-xl transition-all duration-200 text-jade scale-105" data-tab="dynasty" onclick="switchTab('dynasty')">
+      <span class="text-xl transition-transform duration-300" style="transform:scale(1.1) translateY(-2px)">📷</span>
+      <span class="text-[11px] font-medium text-jade">设计</span>
+      <span class="w-1 h-1 rounded-full bg-jade mt-0.5 animate-pulse"></span>
+    </button>
+    <button class="tab-btn flex flex-col items-center gap-0.5 px-4 py-1.5 min-w-[72px] rounded-xl transition-all duration-200 text-fg3" data-tab="silkroad" onclick="switchTab('silkroad')">
+      <span class="text-xl">🗺️</span>
+      <span class="text-[11px] font-medium">丝路玉路</span>
+      <span class="w-1 h-1 rounded-full mt-0.5 opacity-0"></span>
+    </button>
+    <button class="tab-btn flex flex-col items-center gap-0.5 px-4 py-1.5 min-w-[72px] rounded-xl transition-all duration-200 text-fg3" data-tab="story" onclick="switchTab('story')">
+      <span class="text-xl">📜</span>
+      <span class="text-[11px] font-medium">典故生成</span>
+      <span class="w-1 h-1 rounded-full mt-0.5 opacity-0"></span>
+    </button>
+  </div>
+</nav>
+
+<!-- Toast container -->
+<div id="toastContainer" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none"></div>
+
+<!-- Share modal placeholder -->
+<div id="modalContainer"></div>
+
+<!-- ═══ API KEY SETTINGS ═══ -->
+<div id="keyModal" style="display:none"
+     class="fixed inset-0 z-[3000] items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+  <div class="bg-card border border-border rounded-2xl w-full max-w-sm p-5 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-display font-bold text-fg1">API Key 设置</h3>
+      <button onclick="closeKeySettings()" class="text-fg3 hover:text-fg2 text-lg leading-none">✕</button>
+    </div>
+    <p class="text-[11px] text-fg3 leading-relaxed">
+      本项目不内置任何 Key。填入你自己的 SiliconFlow Key 即可生成玉器与配图；
+      Key 只保存在本机浏览器 localStorage。
+    </p>
+    <label class="block space-y-1">
+      <span class="text-xs text-fg2">SiliconFlow API Key</span>
+      <input id="keyInput" type="password" placeholder="sk-..."
+        class="w-full px-3 py-2.5 bg-bg border border-border rounded-xl text-sm text-fg1 placeholder:text-fg3"/>
+    </label>
+    <label class="block space-y-1">
+      <span class="text-xs text-fg2">图片模型</span>
+      <input id="modelInput" type="text" placeholder="Tongyi-MAI/Z-Image-Turbo"
+        class="w-full px-3 py-2.5 bg-bg border border-border rounded-xl text-sm text-fg1 placeholder:text-fg3"/>
+    </label>
+    <div class="flex gap-2">
+      <button onclick="saveKeySettings()" class="flex-1 py-2.5 bg-jade text-black font-medium rounded-xl text-sm active:scale-95 transition-transform">保存</button>
+      <button onclick="clearKeySettings()" class="px-4 py-2.5 border border-border text-fg2 rounded-xl text-sm active:scale-95 transition-transform">清除</button>
+    </div>
+    <p class="text-[10px] text-fg3">
+      获取 Key：<a href="https://cloud.siliconflow.cn/account/ak" target="_blank" rel="noopener" class="text-jade underline underline-offset-2">cloud.siliconflow.cn → API 密钥</a>
+    </p>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════
+const DYNASTIES = [
+  {id:'han',label:'汉代',period:'西汉-东汉 (202 BC–220 AD)',features:['螭纹','云气纹','谷纹','蚕纹','古朴厚重'],jadeTypes:['青白玉','黄玉'],tint:[180,195,170,.35]},
+  {id:'tang',label:'唐代',period:'唐代 (618–907 AD)',features:['胡人纹','莲花纹','宝相花纹','丰满圆润','西域风格'],jadeTypes:['白玉','青玉'],tint:[220,215,200,.30]},
+  {id:'song',label:'宋代',period:'宋代 (960–1279 AD)',features:['花鸟纹','童子纹','文人雅致','清淡素雅','镂雕'],jadeTypes:['青玉','黄玉'],tint:[170,190,175,.30]},
+  {id:'ming',label:'明代',period:'明代 (1368–1644 AD)',features:['镂雕透雕','工整细腻','陆子冈风格','龙凤纹','牌饰带板'],jadeTypes:['黄玉','白玉'],tint:[210,195,160,.30]},
+  {id:'qing',label:'清代',period:'清代 (1644–1912 AD)',features:['痕都斯坦','薄胎','乾隆工','繁缛精致','嵌宝石'],jadeTypes:['碧玉','白玉','青玉'],tint:[140,175,145,.35]},
+];
+
+const DESIGN_OPTIONS = {"object":{"label":"器物类型","icon":"🏺","required":true,"options":[{"id":"bi","label":"玉璧","desc":"圆盘形礼器","prompt":"a ceremonial bi disc, flat circular form with a central hole"},{"id":"cong","label":"玉琮","desc":"方柱形礼器","prompt":"a cong tube, square outer section with a cylindrical bore"},{"id":"gui","label":"玉圭","desc":"长条形礼器","prompt":"a gui tablet, elongated flat blade shape with a pointed tip"},{"id":"pendant","label":"玉佩","desc":"随身配饰","prompt":"an ornate jade pendant for wearing, elegant flowing shape"},{"id":"bracelet","label":"玉镯","desc":"腕间美玉","prompt":"a smooth jade bracelet, circular and continuous"},{"id":"vase","label":"玉瓶","desc":"陈设赏器","prompt":"an elegant jade vase with a slender neck and full body"},{"id":"ruyi","label":"玉如意","desc":"吉祥如意","prompt":"a ruyi scepter with a lingzhi-shaped cloud head and curved handle"},{"id":"seal","label":"玉印","desc":"方寸权力","prompt":"a square jade seal with a carved knob finial on top"},{"id":"cup","label":"玉杯","desc":"饮器玲珑","prompt":"a delicate jade cup with subtle flared walls"},{"id":"mountain","label":"玉山子","desc":"山水意境","prompt":"a jade mountain carving with landscape scenes in deep relief"}]},"material":{"label":"玉材选择","icon":"💎","required":true,"options":[{"id":"white","label":"白玉","color":"#f0efe8","prompt":"luminous white jade (白玉), glassy smooth with warm undertones"},{"id":"celadon-white","label":"青白玉","color":"#c5d5c0","prompt":"celadon-white jade (青白玉), pale greenish-grey with natural veining"},{"id":"celadon","label":"青玉","color":"#a8c4a0","prompt":"celadon jade (青玉), soft misty green like distant mountains"},{"id":"yellow","label":"黄玉","color":"#e8d5a0","prompt":"golden-yellow jade (黄玉), rich amber warmth like honey in sunlight"},{"id":"spinach","label":"碧玉","color":"#5a8a60","prompt":"deep spinach-green jade (碧玉), dark saturated forest depths"},{"id":"black","label":"墨玉","color":"#3a3a3a","prompt":"black jade (墨玉), deep inky darkness with subtle undertones"},{"id":"brown","label":"糖玉","color":"#b8916a","prompt":"brown sugar jade (糖玉), warm caramel-brown with russet streaks"}]},"dynasty":{"label":"朝代风格","icon":"🏛️","required":true,"options":[{"id":"han","label":"汉代","desc":"古朴厚重，螭龙云气","prompt":"Han dynasty (202 BC-220 AD) archaic solemn style: thick proportions, chi-dragon and cloud-scroll deep carving, rough tool marks, heavy brown patina and calcification — like a 2000-year-old excavated treasure"},{"id":"tang","label":"唐代","desc":"丰满圆润，宝相莲花","prompt":"Tang dynasty (618-907 AD) cosmopolitan opulent style: full rounded forms, lotus and Baoxiang flower high-relief, Silk Road fusion of Chinese and Persian art, luminous mirror polish, golden-russet skin"},{"id":"song","label":"宋代","desc":"清淡素雅，花鸟童子","prompt":"Song dynasty (960-1279 AD) literati elegant style: delicate shallow carving, flower-and-bird natural scenes, poetic negative space, thin light proportions, soft matte finish — like ink-wash painting in jade"},{"id":"ming","label":"明代","desc":"工整大气，镂雕龙凤","prompt":"Ming dynasty (1368-1644 AD) Lu Zigang imperial style: dense multi-layer openwork, dragons and phoenixes with individually defined details, perfect symmetry, mirror-smooth polish, authoritative composition"},{"id":"qing","label":"清代","desc":"繁缛精致，痕都斯坦","prompt":"Qing dynasty (1644-1912 AD) Qianlong imperial Mughal style: paper-thin translucent walls, Hindustan floral arabesques, gold-wire inlay, inset rubies and turquoises, breathtaking exquisite craftsmanship"}]},"bgColor":{"label":"背景色调","icon":"🎨","required":false,"options":[{"id":"black","label":"墨黑","color":"#0a0a0a","desc":"博物馆展陈","prompt":"pure black background, dramatic studio spotlighting, museum exhibition photography"},{"id":"warm","label":"暖金","color":"#3a3028","desc":"宫廷华贵","prompt":"warm dark golden-brown background, imperial palace atmosphere, soft directional light"},{"id":"celadon-gray","label":"青瓷灰","color":"#8a9088","desc":"素雅文气","prompt":"misty celadon-gray gradient background, soft diffused lighting, serene scholarly atmosphere"},{"id":"sandalwood","label":"檀木棕","color":"#3c2a1e","desc":"古朴素净","prompt":"dark sandalwood brown background, wooden collector's shelf, warm subtle ambient light"},{"id":"cream","label":"素白","color":"#f5f0e8","desc":"纯净无瑕","prompt":"pure cream white background, bright clean studio lighting, minimalist presentation"}]},"pattern":{"label":"纹饰图案","icon":"🌀","required":false,"multi":true,"options":[{"id":"dragon","label":"螭龙纹","prompt":"chi-dragon serpents coiling across the surface"},{"id":"cloud","label":"云气纹","prompt":"flowing cloud-scroll spirals filling the background"},{"id":"grain","label":"谷纹","prompt":"raised grain pattern dots in orderly rows"},{"id":"lotus","label":"莲花纹","prompt":"blooming lotus flower scrolls"},{"id":"phoenix","label":"凤鸟纹","prompt":"phoenixes with spread tail feathers"},{"id":"flower-bird","label":"花鸟纹","prompt":"delicate flower-and-bird natural scenes"},{"id":"taotie","label":"饕餮纹","prompt":"taotie beast mask with symmetrical fierce features"},{"id":"ruyi-pattern","label":"如意纹","prompt":"lingzhi ruyi cloud-head motifs"},{"id":"key-fret","label":"回纹","prompt":"continuous key-fret meander border patterns"},{"id":"plain","label":"素面无纹","prompt":"smooth unadorned surface, pure jade beauty alone"}]},"craft":{"label":"雕刻工艺","icon":"🔨","required":false,"multi":true,"options":[{"id":"relief","label":"浮雕","prompt":"bold relief carving with figures rising from surface"},{"id":"openwork","label":"镂雕透雕","prompt":"intricate openwork piercing through multiple layers"},{"id":"round","label":"圆雕","prompt":"fully three-dimensional round sculptural carving"},{"id":"line","label":"阴线刻","prompt":"fine incised line engraving with hair-thin precision"},{"id":"thin-wall","label":"薄胎工艺","prompt":"paper-thin translucent walls that glow when backlit"},{"id":"gem-inlay","label":"嵌宝石","prompt":"inset rubies and turquoises catching light"},{"id":"gold-inlay","label":"错金丝","prompt":"gold-wire inlay tracing delicate arabesque lines"}]},"visualStyle":{"label":"画面风格","icon":"🖼️","required":false,"options":[{"id":"museum","label":"博物馆写真","desc":"超写实摄影","prompt":"museum artifact photography, ultra realistic 8K, dramatic lighting, sharp detail"},{"id":"ink-wash","label":"古风水墨","desc":"写意留白","prompt":"Chinese ink-wash painting aesthetic, poetic simplicity, misty soft brush-stroke textures, elegant negative space"},{"id":"court","label":"宫廷画卷","desc":"富丽堂皇","prompt":"Ming-Qing court painting style, rich saturated colors, ornate detailed composition, imperial grandeur"},{"id":"minimal","label":"极简素雅","desc":"大朴不雕","prompt":"minimalist clean aesthetic, single object centered, abundant breathing space, serene meditative"},{"id":"archaeological","label":"文物出土","desc":"斑驳古朴","prompt":"archaeological excavation photograph, half-buried in earth, genuine ancient patina, raking sunlight, raw authentic"}]}};
+
+// ═══════════════════════════════════════
+// API KEY — 使用者自填，仅存本机 localStorage
+// ═══════════════════════════════════════
+const KEY_STORAGE = 'jade.siliconflow.key';
+const MODEL_STORAGE = 'jade.siliconflow.imageModel';
+const DEFAULT_IMAGE_MODEL = 'Tongyi-MAI/Z-Image-Turbo';
+const IMAGE_API = 'https://api.siliconflow.cn/v1/images/generations';
+
+let SILICONFLOW_KEY = localStorage.getItem(KEY_STORAGE) || '';
+let IMAGE_MODEL = localStorage.getItem(MODEL_STORAGE) || DEFAULT_IMAGE_MODEL;
+
+function hasKey() { return !!SILICONFLOW_KEY.trim(); }
+
+function updateKeyDot() {
+  const dot = document.getElementById('keyDot');
+  if (dot) dot.style.display = hasKey() ? 'none' : 'block';
+}
+
+function openKeySettings() {
+  document.getElementById('keyInput').value = SILICONFLOW_KEY;
+  document.getElementById('modelInput').value = IMAGE_MODEL;
+  document.getElementById('keyModal').style.display = 'flex';
+}
+
+function closeKeySettings() {
+  document.getElementById('keyModal').style.display = 'none';
+}
+
+function saveKeySettings() {
+  SILICONFLOW_KEY = document.getElementById('keyInput').value.trim();
+  IMAGE_MODEL = document.getElementById('modelInput').value.trim() || DEFAULT_IMAGE_MODEL;
+  localStorage.setItem(KEY_STORAGE, SILICONFLOW_KEY);
+  localStorage.setItem(MODEL_STORAGE, IMAGE_MODEL);
+  updateKeyDot();
+  closeKeySettings();
+  showToast(SILICONFLOW_KEY ? 'API Key 已保存 ✨' : 'Key 已清空');
+}
+
+function clearKeySettings() {
+  SILICONFLOW_KEY = '';
+  localStorage.removeItem(KEY_STORAGE);
+  document.getElementById('keyInput').value = '';
+  updateKeyDot();
+  closeKeySettings();
+  showToast('已清除本机保存的 Key');
+}
+
+function requireKey() {
+  if (hasKey()) return true;
+  showToast('请先填写 API Key');
+  openKeySettings();
+  return false;
+}
+
+const PRESETS = [
+  {keyword:'君子佩玉',title:'君子佩玉',title_en:'A Gentleman Wears Jade',explanation:'古代君子以玉比德，佩玉于身以时刻自省。玉之温润象征仁，纹理象征义，声音象征智，不折象征勇。',source:'《礼记·玉藻》',source_text:'君子无故，玉不去身，君子于玉比德焉。'},
+  {keyword:'弄玉吹箫',title:'弄玉吹箫',title_en:'Nong Yu Plays the Flute',explanation:'秦穆公之女弄玉善吹玉箫，引来凤凰，后与仙人萧史乘凤飞升。玉箫成为仙乐与美好姻缘的象征。',source:'《列仙传》',source_text:'萧史善吹箫，作凤鸣，秦穆公以女弄玉妻之，一旦皆随凤凰飞去。'},
+  {keyword:'完璧归赵',title:'完璧归赵',title_en:'Return the Jade Intact',explanation:'蔺相如携和氏璧出使秦国，以智勇双全迫使秦王让步，将无价之宝完好归还赵国，成为外交智慧的典范。',source:'《史记·廉颇蔺相如列传》',source_text:'城入赵而璧留秦；城不入，臣请完璧归赵。'},
+  {keyword:'化干戈为玉帛',title:'化干戈为玉帛',title_en:'Swords into Jade and Silk',explanation:'化战争为和平——干戈为兵器，玉帛为礼仪之器。古代诸侯会盟时以玉帛为礼，象征放下兵戈、结为友好。',source:'《淮南子·原道训》',source_text:'化干戈为玉帛，犹化虎狼为羔羊也。'},
+  {keyword:'金玉满堂',title:'金玉满堂',title_en:'Hall of Gold and Jade',explanation:'金玉堆满厅堂，象征极致富贵。老子提出"金玉满堂，莫之能守"，提醒世人财富无常，德行方为长久之道。',source:'《老子·九章》',source_text:'金玉满堂，莫之能守；富贵而骄，自遗其咎。'},
+  {keyword:'冰清玉洁',title:'冰清玉洁',title_en:'Pure as Ice, Clean as Jade',explanation:'如冰之清澈、如玉之无瑕，比喻人的品格高洁。古人认为玉有九德，纯净无瑕的玉代表了最高尚的人格追求。',source:'《魏书·广陵王传》',source_text:'冰清玉洁，有若寒松劲竹，虽经霜雪而不改其操。'},
+];
+
+const ROUTE_DATA = {
+  hotan:{id:'hotan',color:{line:'#4ade80',marker:'#22c55e',name:'和田玉路线',en:'Hotan Jade Route'},
+    path:[[37.1147,79.9225],[39.4736,75.9896],[40.1421,94.6620],[38.9317,100.4553],[34.263,108.942]],
+    markers:[
+      {id:'hotan',name:'和田 (于阗)',en:'Hotan (Khotan)',latlng:[37.1147,79.9225],period:'公元前2000年至今',desc:'昆仑山脉北麓，世界最著名软玉产地。和田玉自新石器时代被开采，经于阗国输入中原，是丝绸之路"玉之路"的起点。',artifact:'战国 和田玉龙形佩',material:'和田青白玉'},
+      {id:'kashgar',name:'喀什 (疏勒)',en:'Kashgar',latlng:[39.4736,75.9896],period:'公元前2世纪至今',desc:'丝绸之路南北道交汇枢纽，西域商贸重镇。和田玉经此西传中亚、波斯，东运中原，是玉石贸易最关键中转站。',artifact:'唐 胡人献玉俑',material:'白玉'},
+      {id:'dunhuang',name:'敦煌 (沙州)',en:'Dunhuang',latlng:[40.1421,94.662],period:'公元前1世纪至今',desc:'丝绸之路"咽喉"，莫高窟所在地。大量壁画和文献记录了西域玉石贸易的盛况，是玉文化东传的见证地。',artifact:'唐 莫高窟玉观音像',material:'青玉'},
+      {id:'changan',name:'长安 (西安)',en:"Chang'an",latlng:[34.263,108.942],period:'公元前1000年至今',desc:'丝绸之路东方终点，十三朝古都。历代皇室玉器作坊汇聚于此，和田玉在此被雕琢成国之重器。',artifact:'汉 皇后之玺',material:'和田白玉'},
+    ]},
+  maya:{id:'maya',color:{line:'#fbbf24',marker:'#f59e0b',name:'玛雅翡翠路线',en:'Maya Jadeite Route'},
+    path:[[15.0,-89.5],[14.8333,-89.15],[17.4833,-92.05],[20.6833,-88.5667]],
+    markers:[
+      {id:'motagua',name:'莫塔瓜河谷',en:'Motagua Valley',latlng:[15.0,-89.5],period:'公元前1500年至今',desc:'中美洲唯一的翡翠产地。翠绿色硬玉是奥尔梅克、玛雅文明中最珍贵的材料，比黄金更贵重。',artifact:'奥尔梅克 翡翠面具',material:'翡翠 Jadeite'},
+      {id:'palenque',name:'帕伦克',en:'Palenque',latlng:[17.4833,-92.05],period:'公元300-800年',desc:'玛雅西部重要城邦，王室墓葬中出土了最为精美的翡翠随葬品，包括著名的"帕伦克翡翠面具"。',artifact:'巴加尔二世翡翠面具',material:'翡翠 Jadeite'},
+      {id:'chichen',name:'奇琴伊察',en:'Chichén Itzá',latlng:[20.6833,-88.5667],period:'公元600-1200年',desc:'玛雅后古典期最大中心城市，翡翠在此作为祭祀圣物投入"圣井"，是贸易路线的北方终点。',artifact:'圣井出土 翡翠盘',material:'翡翠 Jadeite'},
+    ]},
+  maori:{id:'maori',color:{line:'#60a5fa',marker:'#3b82f6',name:'毛利碧玉路线',en:'Maori Pounamu Route'},
+    path:[[-42.6667,171.0333],[-43.3833,172.65],[-38.1333,176.25],[-35.7333,174.3167]],
+    markers:[
+      {id:'arahura',name:'阿拉胡拉河',en:'Arahura River',latlng:[-42.6667,171.0333],period:'公元1300年至今',desc:'南岛西海岸最主要碧玉产地，出产inanga、kahurangi和kawakawa品种，毛利人最珍视的宝藏。',artifact:'Hei-tiki 人形玉坠',material:'Pounamu 软玉'},
+      {id:'rotorua',name:'罗托鲁瓦',en:'Rotorua',latlng:[-38.1333,176.25],period:'公元1500年至今',desc:'北岛Te Arawa部落中心，来自南岛的碧玉在此被加工成精美的hei-tiki和仪式用短棍。',artifact:'Pounamu 耳坠',material:'Pounamu 软玉'},
+      {id:'whangarei',name:'旺阿雷',en:'Whangarei',latlng:[-35.7333,174.3167],period:'公元1500年至今',desc:'碧玉贸易网络最北端。南岛西海岸pounamu经过数千公里部落交换抵达此处。',artifact:'Pounamu 仪式短棍',material:'Pounamu 软玉'},
+    ]},
+};
+
+const TIMELINE_EVENTS = [
+  {year:-2000,label:'约公元前2000年',title:'良渚文化 — 玉器文明开端',routeId:'hotan',latlng:[30.416,119.977],summary:'长江下游良渚文化出土大量玉琮、玉璧，标志着东亚最早的玉器礼制体系。部分玉料来自和田，证明新石器时代已存在超长距离玉石贸易。',icon:'🏺'},
+  {year:-1500,label:'约公元前1500年',title:'奥尔梅克文明 — 翡翠文化起源',routeId:'maya',latlng:[17.8,-94.5],summary:'墨西哥湾沿岸奥尔梅克人开始从危地马拉莫塔瓜河谷获取翡翠，制作仪式面具。翡翠被视为生命、丰收和权力的象征。',icon:'🎭'},
+  {year:-1300,label:'约公元前1300年',title:'殷墟妇好墓 — 商代和田玉巅峰',routeId:'hotan',latlng:[36.125,114.3167],summary:'安阳殷墟妇好墓出土755件玉器，经矿物鉴定大部分为和田玉。证明商代已建立从昆仑山到中原的稳定玉料供应线。',icon:'👑'},
+  {year:-600,label:'约公元前600年',title:'玉门关 — "玉之路"正式命名',routeId:'hotan',latlng:[40.35,93.85],summary:'敦煌西北的玉门关因西域输入玉石而得名。"玉石之路"成为丝绸之路的前身和重要组成部分。',icon:'🏯'},
+  {year:-138,label:'公元前138年',title:'张骞出使西域 — 丝绸之路开通',routeId:'hotan',latlng:[34.263,108.942],summary:'汉武帝遣张骞出使西域，带回大量和田玉料。汉朝设西域都护府，将和田纳入版图，玉石贸易进入官方管控时代。',icon:'🐫'},
+  {year:250,label:'约公元250年',title:'玛雅古典期 — 翡翠贸易黄金时代',routeId:'maya',latlng:[17.4833,-92.05],summary:'玛雅文明进入古典期高峰，翡翠成为王室专属奢侈品。从莫塔瓜河谷到尤卡坦半岛的贸易路线达到最活跃状态。',icon:'🏛️'},
+  {year:630,label:'约公元630年',title:'唐代 — 丝绸之路全盛',routeId:'hotan',latlng:[34.263,108.942],summary:'唐太宗被尊为"天可汗"，西域诸国纷纷进贡和田美玉。长安成为世界最大玉石加工和贸易中心，玉器样式吸收波斯、粟特风格。',icon:'🌏'},
+  {year:900,label:'约公元900年',title:'玛雅文明衰落 — 翡翠路线南移',routeId:'maya',latlng:[20.6833,-88.5667],summary:'古典玛雅城邦相继衰落，但翡翠贸易并未完全中断。阿兹特克文明在墨西哥谷地兴起，继续从危地马拉获取翡翠。',icon:'📉'},
+  {year:1300,label:'约公元1300年',title:'毛利人抵达新西兰 — 发现Pounamu',routeId:'maori',latlng:[-42.6667,171.0333],summary:'波利尼西亚航海者抵达南岛西海岸，发现阿拉胡拉河流域的碧玉。Ngāi Tahu部落传说中Poutini神将绿玉带到西海岸。',icon:'⛵'},
+  {year:1420,label:'约公元1420年',title:'明代 — 玉器走向民间',routeId:'hotan',latlng:[32.05,118.7667],summary:'明朝解除玉器皇室垄断，苏州、扬州成为民间玉雕中心。"陆子冈"款玉牌名扬天下。郑和下西洋将中国玉器传播至东南亚。',icon:'💎'},
+  {year:1521,label:'公元1521年',title:'西班牙征服 — 玛雅翡翠贸易终结',routeId:'maya',latlng:[20.6833,-88.5667],summary:'西班牙征服者占领阿兹特克帝国和中美洲。翡翠矿区逐渐荒废，传统贸易路线断裂。欧洲殖民者更关注黄金和白银。',icon:'⚔️'},
+  {year:1600,label:'约公元1600年',title:'毛利碧玉贸易网络成熟',routeId:'maori',latlng:[-38.1333,176.25],summary:'南岛西海岸到北岛各地的碧玉贸易网络完全建立。Pounamu被制成hei-tiki、mere和耳坠，成为毛利部落权力和身份的终极象征。',icon:'🪨'},
+  {year:1760,label:'约公元1760年',title:'清代 — 痕都斯坦玉器传入',routeId:'hotan',latlng:[39.9167,116.3833],summary:'乾隆帝平定准噶尔后，和田正式纳入版图。痕都斯坦（莫卧儿印度）风格的薄胎玉器传入，与中原玉雕技艺融合，形成清代玉器巅峰——"乾隆工"。',icon:'👑'},
+  {year:1800,label:'约公元1800年',title:'欧洲接触 — 毛利碧玉文化转折',routeId:'maori',latlng:[-35.7333,174.3167],summary:'欧洲殖民者和捕鲸者大量抵达新西兰。金属工具改变了碧玉加工方式，部分毛利碧玉制品被作为外交礼物送给欧洲王室。',icon:'🤝'},
+];
+
+// ═══════════════════════════════════════
+// GLOBAL STATE
+// ═══════════════════════════════════════
+let activeTab = 'dynasty';
+let mapInstance = null;
+let routePolylines = {};
+let routeMarkerGroups = {};
+let eventLayerGroup = null;
+let selectedDynasty = 'han';
+let designSelections = {};
+let designOptions = null;
+let dynastyResult = null;
+let dynastyResultLabel = '';
+let silkroadRoute = 'hotan';
+let currentYear = -2000;
+let playing = false;
+let playTimer = null;
+let selectedNode = null;
+let currentStory = null;
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+function showToast(msg) {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'px-5 py-2.5 rounded-xl bg-jade/15 border border-jade/30 text-jade text-sm font-medium backdrop-blur-md shadow-lg';
+  t.style.animation = 'toastIn .3s ease-out forwards';
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+
+function addRipple(el) {
+  el.classList.add('relative');
+  el.style.overflow = 'hidden';
+  el.addEventListener('pointerdown', function(e) {
+    const rect = el.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2;
+    const x = e.clientX - rect.left - size/2;
+    const y = e.clientY - rect.top - size/2;
+    const r = document.createElement('span');
+    r.className = 'ripple';
+    r.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px`;
+    el.appendChild(r);
+    r.addEventListener('animationend', () => r.remove());
+  });
+}
+
+// ═══════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════
+function switchTab(tab) {
+  activeTab = tab;
+  // Update tab contents visibility
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  // Update tab bar buttons
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const isActive = b.dataset.tab === tab;
+    b.className = 'tab-btn flex flex-col items-center gap-0.5 px-4 py-1.5 min-w-[72px] rounded-xl transition-all duration-200 ' +
+      (isActive ? 'text-jade scale-105' : 'text-fg3');
+    const icon = b.querySelector('span:first-child');
+    const dot = b.querySelector('.w-1');
+    if (isActive) { icon.style.transform = 'scale(1.1) translateY(-2px)'; dot.classList.add('animate-pulse'); dot.style.opacity = '1'; }
+    else { icon.style.transform = ''; dot.classList.remove('animate-pulse'); dot.style.opacity = '0'; }
+    b.querySelector('span:nth-child(2)').className = 'text-[11px] font-medium ' + (isActive ? 'text-jade' : '');
+  });
+  // Update header
+  const titles = {dynasty:['玉境 · 设计','择器选材，AI铸玉'],silkroad:['玉境 · 探索','全球玉文化交流史'],story:['玉境 · 品读','典故选读，以玉观文']};
+  document.getElementById('headerTitle').textContent = titles[tab][0];
+  document.getElementById('headerSub').textContent = titles[tab][1];
+  // Init tab-specific content
+  if (tab === 'silkroad') {
+    // Delay until DOM is painted, then force map to recalculate
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        initMap();
+      });
+    });
+  }
+  if (tab === 'dynasty') renderDynastyTab();
+  if (tab === 'story') renderStoryTab();
+}
+
+// ═══════════════════════════════════════
+// TAB 1 — DYNASTY FILTER (Design Mode)
+// ═══════════════════════════════════════
+const CAT_ORDER = ['object','material','dynasty','visualStyle','bgColor','pattern','craft'];
+
+async function loadDesignOptions() {
+  if (designOptions) return designOptions;
+  // Strip internal prompt fields for the UI
+  designOptions = {};
+  for (const [catKey, catVal] of Object.entries(DESIGN_OPTIONS)) {
+    designOptions[catKey] = {
+      label: catVal.label, icon: catVal.icon || '',
+      required: catVal.required || false, multi: catVal.multi || false,
+      options: catVal.options.map(o => ({id: o.id, label: o.label, desc: o.desc || '', color: o.color || ''}))
+    };
+  }
+  return designOptions;
+}
+
+function buildDesignPrompt(selections) {
+  const parts = [];
+  if (selections.visualStyle) {
+    const opt = DESIGN_OPTIONS.visualStyle.options.find(o => o.id === selections.visualStyle);
+    if (opt) parts.push(opt.prompt);
+  }
+  let core = 'A Chinese jade artifact: ';
+  const obj = DESIGN_OPTIONS.object.options.find(o => o.id === selections.object);
+  if (obj) core += obj.prompt;
+  const mat = DESIGN_OPTIONS.material.options.find(o => o.id === selections.material);
+  if (mat) core += ', carved from ' + mat.prompt;
+  const dyn = DESIGN_OPTIONS.dynasty.options.find(o => o.id === selections.dynasty);
+  if (dyn) core += '. ' + dyn.prompt;
+  parts.push(core);
+  if (selections.patterns && selections.patterns.length) {
+    const sel = DESIGN_OPTIONS.pattern.options.filter(o => selections.patterns.includes(o.id));
+    if (sel.length) parts.push('Surface decoration: ' + sel.map(o => o.prompt).join('. ') + '.');
+  }
+  if (selections.crafts && selections.crafts.length) {
+    const sel = DESIGN_OPTIONS.craft.options.filter(o => selections.crafts.includes(o.id));
+    if (sel.length) parts.push('Carving technique: ' + sel.map(o => o.prompt).join('. ') + '.');
+  }
+  if (selections.bgColor) {
+    const opt = DESIGN_OPTIONS.bgColor.options.find(o => o.id === selections.bgColor);
+    if (opt) parts.push('Setting: ' + opt.prompt + '.');
+  }
+  parts.push('Professional product photography, studio lighting, square format.');
+  return parts.join(' ');
+}
+
+function buildNegativePrompt(selections) {
+  let neg = 'cartoon, low quality, blurry, watermark, text, signature, plastic, fake, 3D render, CGI, multiple objects, cluttered, distorted proportions, deformed, disfigured';
+  const sn = {museum:'painting, sketch, cartoon, illustration, abstract', 'ink-wash':'photorealistic, sharp focus, hard edges, glossy, shiny, 3D render', court:'minimalist, empty space, monochrome, rough, primitive', minimal:'cluttered, ornate, complex, busy, baroque, elaborate', archaeological:'polished, perfect, shiny, clean, modern, studio lighting'};
+  if (selections.visualStyle && sn[selections.visualStyle]) neg += ', ' + sn[selections.visualStyle];
+  return neg;
+}
+
+function toggleDesignOption(catKey, optId, multi) {
+  if (multi) {
+    const current = designSelections[catKey] || [];
+    designSelections[catKey] = current.includes(optId)
+      ? current.filter(id => id !== optId)
+      : [...current, optId];
+  } else {
+    designSelections[catKey] = designSelections[catKey] === optId ? undefined : optId;
+  }
+  renderDynastyTab();
+}
+
+function selectedCount(catKey) {
+  const v = designSelections[catKey];
+  if (!v) return 0;
+  return Array.isArray(v) ? v.length : 1;
+}
+
+function canGenerate() {
+  return designSelections.object && designSelections.material && designSelections.dynasty;
+}
+
+async function renderDynastyTab() {
+  const container = document.getElementById('dynastyContent');
+  const opts = await loadDesignOptions();
+
+  if (!opts) {
+    container.innerHTML = `<div class="text-center py-16 text-fg3"><p class="text-4xl mb-3">🔌</p><p>无法连接后端</p><p class="text-xs mt-1">请启动后端服务以使用设计功能</p></div>`;
+    return;
+  }
+
+  let html = `<p class="text-xs text-fg3 text-center">分级选择，组合你的专属玉器设计</p>`;
+
+  CAT_ORDER.forEach(catKey => {
+    const cat = opts[catKey];
+    if (!cat) return;
+    const count = selectedCount(catKey);
+    const sel = designSelections[catKey];
+    const isMulti = cat.multi;
+
+    // Selected chips (compact view)
+    let chipsHTML = '';
+    if (count > 0) {
+      const ids = isMulti ? (sel || []) : [sel];
+      chipsHTML = `<div class="flex flex-wrap gap-1.5 px-4 pb-2">${ids.map(id => {
+        const o = cat.options.find(x => x.id === id);
+        return o ? `<span class="text-[10px] px-2 py-1 bg-jade/10 text-jade rounded-full">${o.label}</span>` : '';
+      }).join('')}</div>`;
+    }
+
+    // Option buttons
+    const btnHTML = cat.options.map(opt => {
+      const selected = isMulti ? (sel || []).includes(opt.id) : sel === opt.id;
+      const colorDot = opt.color ? `<span class="w-3 h-3 rounded-full border border-white/20 flex-shrink-0" style="background:${opt.color}"></span>` : '';
+      return `<button onclick="toggleDesignOption('${catKey}','${opt.id}',${isMulti})"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all active:scale-95 ${selected
+          ? 'bg-jade text-black'
+          : 'bg-bg text-fg2 hover:bg-jade/10 border border-transparent hover:border-jade/30'}">
+        ${colorDot}${opt.label}
+      </button>`;
+    }).join('');
+
+    html += `
+      <div class="bg-card border border-border rounded-2xl overflow-hidden mt-3">
+        <div class="flex items-center gap-2 px-4 py-2.5">
+          <span class="text-base">${cat.icon||''}</span>
+          <span class="font-display font-semibold text-fg1 text-xs flex-1">${cat.label}${cat.required?' <span class="text-seal">*</span>':''}</span>
+          ${count > 0 ? `<span class="px-1.5 py-0.5 bg-jade/15 text-jade text-[10px] rounded-full">${isMulti ? '已选'+count : '已选'}</span>` : ''}
+        </div>
+        <div class="px-3 pb-3 flex flex-wrap gap-1.5">${btnHTML}</div>
+      </div>`;
+  });
+
+  html += `<button id="generateBtn" onclick="generateJadeDesign()" ${!canGenerate()?'disabled':''}
+    class="w-full py-4 bg-gradient-to-r from-jade via-jade to-jade-deep text-black font-bold text-lg rounded-2xl mt-4
+    disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-[.98] shadow-lg shadow-jade/20">
+    ${canGenerate() ? '✨ 生成玉器设计' : '请完成必选分类 (*)'}</button>`;
+
+  container.innerHTML = html;
+  const btn = document.getElementById('generateBtn'); if (btn) addRipple(btn);
+}
+
+async function generateJadeDesign() {
+  if (!canGenerate()) return;
+  if (!requireKey()) return;
+  const container = document.getElementById('dynastyContent');
+  container.innerHTML = `<div class="flex flex-col items-center justify-center py-20 gap-6"><div class="relative w-20 h-20"><svg class="spinner w-full h-full text-jade" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" stroke-dasharray="8 6" stroke-linecap="round" opacity=".3"/><circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" stroke-dasharray="90 120" stroke-linecap="round" stroke-dashoffset="30"/></svg><span class="absolute inset-0 flex items-center justify-center text-2xl">💎</span></div><p class="font-display text-fg2 text-lg animate-pulse">依汝之选，匠心琢玉…</p><p class="text-fg3 text-xs">AI 正在为你设计专属玉器</p></div>`;
+
+  try {
+    const prompt = buildDesignPrompt(designSelections);
+    const negative = buildNegativePrompt(designSelections);
+    const res = await fetch(IMAGE_API, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SILICONFLOW_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: IMAGE_MODEL, prompt, negative_prompt: negative, n: 1, size: '1024x1024' })
+    });
+    if (res.status === 401 || res.status === 403) throw new Error('API Key 无效或无权限，请点击右上角 ⚙️ 重新填写');
+    if (!res.ok) {
+      const d = await res.json().catch(()=>({}));
+      throw new Error(d.message || d.detail || `API错误 (${res.status})`);
+    }
+    const data = await res.json();
+    const imgUrl = data?.data?.[0]?.url;
+    if (!imgUrl) throw new Error('API返回无图片');
+    // Download via our fetch to avoid CORS issues displaying cross-origin image
+    const imgRes = await fetch(imgUrl);
+    const blob = await imgRes.blob();
+    dynastyResult = URL.createObjectURL(blob);
+    const dyn = DESIGN_OPTIONS.dynasty.options.find(o => o.id === designSelections.dynasty);
+    dynastyResultLabel = (dyn?.label || '') + '风格玉器';
+    renderDynastyResult();
+    showToast('AI已生成专属玉器设计 ✨');
+  } catch(e) {
+    container.innerHTML = `<div class="text-center py-16"><p class="text-seal text-sm bg-seal/10 py-3 rounded-lg mb-4">${e.message}</p><button onclick="renderDynastyTab()" class="px-4 py-2 border border-border text-fg2 rounded-xl text-sm">返回重新设计</button></div>`;
+  }
+}
+
+function renderDynastyResult() {
+  const container = document.getElementById('dynastyContent');
+  container.innerHTML = `
+    <div class="space-y-4">
+      <div class="relative w-full aspect-square rounded-2xl overflow-hidden bg-card border border-border">
+        <img src="${dynastyResult}" alt="" class="absolute inset-0 w-full h-full object-cover"/>
+        <span class="absolute top-3 right-3 px-2 py-1 bg-black/60 text-jade text-xs rounded-lg backdrop-blur-sm z-20">${dynastyResultLabel}</span>
+      </div>
+      <div class="flex items-center gap-2 justify-center flex-wrap">
+        <button onclick="saveDynastyImage()" class="flex items-center gap-2 px-4 py-2.5 bg-jade text-black font-medium rounded-xl text-sm active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> 保存图片</button>
+        <button onclick="dynastyResult=null;renderDynastyTab()" class="text-fg3 text-sm underline underline-offset-4">再设计一个</button>
+      </div>
+    </div>`;
+}
+
+async function saveDynastyImage() {
+  if (!dynastyResult) return;
+  try {
+    const a = document.createElement('a'); a.href = dynastyResult; a.download = 'jade-design.png'; a.click();
+    showToast('已保存至相册 ✨');
+  } catch(e) { showToast('保存失败，请重试'); }
+}
+
+
+// ═══════════════════════════════════════
+// TAB 2 — SILK ROAD MAP
+// ═══════════════════════════════════════
+function initSilkRoadUI() {
+  const container = document.getElementById('silkroadContent');
+  container.innerHTML = `
+    <div class="flex gap-1 px-3 py-2 overflow-x-auto no-scrollbar" id="routeSwitcher"></div>
+    <div id="mapContainer" class="flex-1 w-full"></div>
+    <div class="px-3 py-2 bg-card border-t border-border space-y-1 flex-shrink-0">
+      <div class="flex items-center justify-between">
+        <span class="font-display text-sm font-bold text-fg1" id="yearLabel">公元前 2000 年</span>
+        <div class="flex items-center gap-2">
+          <button onclick="stepTimeline(-200)" class="w-7 h-7 rounded-full bg-bg border border-border text-fg2 text-xs flex items-center justify-center">◀</button>
+          <button id="playBtn" onclick="togglePlay()" class="w-9 h-9 rounded-full flex items-center justify-center text-sm bg-jade text-black">▶</button>
+          <button onclick="stepTimeline(200)" class="w-7 h-7 rounded-full bg-bg border border-border text-fg2 text-xs flex items-center justify-center">▶</button>
+        </div>
+      </div>
+      <input type="range" id="timeSlider" min="-2000" max="1800" step="50" value="-2000" oninput="setTimeline(parseInt(this.value))" class="w-full"/>
+      <div class="flex justify-between text-[10px] text-fg3"><span>公元前2000年</span><span>公元元年</span><span>公元1800年</span></div>
+    </div>
+    <div class="px-3 pb-1 flex gap-2 overflow-x-auto no-scrollbar" id="eventStrip"></div>
+    <div id="nodeSheet"></div>`;
+}
+
+function renderRouteSwitcher() {
+  const el = document.getElementById('routeSwitcher');
+  if (!el) return;
+  el.innerHTML = Object.entries(ROUTE_DATA).map(([id,r]) =>
+    `<button onclick="switchRoute('${id}')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all flex-shrink-0 ${silkroadRoute===id?'text-black font-semibold shadow-md':'bg-card border border-border text-fg2'}" style="${silkroadRoute===id?'background:'+r.color.line:''}"><span class="w-2 h-2 rounded-full" style="background:${r.color.line}"></span>${r.color.name}</button>`
+  ).join('');
+}
+
+function initMap(retryCount) {
+  initSilkRoadUI();
+  renderRouteSwitcher();
+  // Destroy old map if exists (display:none corrupts Leaflet's internal state)
+  if (mapInstance) { mapInstance.remove(); mapInstance = null; routePolylines = {}; routeMarkerGroups = {}; eventLayerGroup = null; }
+  const mc = document.getElementById('mapContainer');
+  if (!mc) return;
+  // Retry up to 8 times if container hasn't been laid out yet
+  if (mc.offsetHeight === 0) {
+    if (!retryCount || retryCount < 8) {
+      setTimeout(() => initMap((retryCount || 0) + 1), 100);
+    }
+    return;
+  }
+  mapInstance = L.map('mapContainer', {center:[25,30],zoom:2.2,minZoom:2,maxZoom:10,zoomControl:false,attributionControl:false});
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {attribution:'&copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(mapInstance);
+  L.control.zoom({position:'bottomright'}).addTo(mapInstance);
+  // Draw routes
+  Object.entries(ROUTE_DATA).forEach(([id,r]) => {
+    const poly = L.polyline(r.path, {color:r.color.line,weight:3,opacity:.8,dashArray:'10,8',lineCap:'round'}).addTo(mapInstance);
+    routePolylines[id] = poly;
+    const mg = L.layerGroup().addTo(mapInstance);
+    routeMarkerGroups[id] = mg;
+    r.markers.forEach(m => {
+      const cm = L.circleMarker(m.latlng, {radius:6,fillColor:r.color.line,color:'#fff',weight:2,fillOpacity:.9}).addTo(mg);
+      cm.bindPopup(`<div style="font-family:'Noto Sans SC',sans-serif;min-width:200px"><h4 style="font-family:'Noto Serif SC',serif;font-size:14px;font-weight:700;color:#f5f5f4;margin:0 0 2px">${m.name}</h4><p style="font-size:10px;color:#a8a29e;margin:0 0 6px">${m.en}</p><p style="font-size:11px;color:#a8a29e;line-height:1.5;margin:0 0 4px">${m.desc.substring(0,80)}...</p><p style="font-size:10px;color:#4ade80;margin:0">${m.artifact} · ${m.material}</p></div>`,{maxWidth:260});
+      cm.on('click',() => showNodeSheet(m, r));
+    });
+  });
+  eventLayerGroup = L.layerGroup().addTo(mapInstance);
+  updateRouteStyles();
+  updateTimelineEvents();
+  updateEventStrip();
+  updateYearLabel();
+  // Keep map tiles in sync when container size changes
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => { if (mapInstance) mapInstance.invalidateSize(); }).observe(mc);
+  }
+}
+
+function updateRouteStyles() {
+  Object.entries(routePolylines).forEach(([id,poly]) => {
+    if (id === silkroadRoute) poly.setStyle({weight:4,opacity:1,dashArray:'12,6'});
+    else poly.setStyle({weight:2,opacity:.35,dashArray:'8,10'});
+  });
+  const r = ROUTE_DATA[silkroadRoute];
+  if (r && mapInstance) mapInstance.flyToBounds(L.latLngBounds(r.path), {padding:[40,40],maxZoom:6,duration:1});
+}
+
+function switchRoute(routeId) {
+  silkroadRoute = routeId;
+  renderRouteSwitcher();
+  updateRouteStyles();
+}
+
+function showNodeSheet(m, r) {
+  selectedNode = m;
+  const el = document.getElementById('nodeSheet');
+  el.innerHTML = `
+    <div class="fixed inset-x-0 bottom-14 z-[900] bg-card/98 backdrop-blur-xl border-t border-border rounded-t-2xl shadow-2xl max-h-[45vh] overflow-y-auto" style="animation:slideUp .3s ease-out;padding-bottom:env(safe-area-inset-bottom,12px)">
+      <div class="sticky top-0 flex items-center justify-between px-4 py-3 bg-card/95 backdrop-blur-sm border-b border-border">
+        <h3 class="font-display font-bold">${m.name} <span class="text-xs text-fg3 font-normal">${m.en}</span></h3>
+        <button onclick="closeNodeSheet()" class="w-7 h-7 rounded-full bg-bg border border-border text-fg2 flex items-center justify-center">✕</button>
+      </div>
+      <div class="p-4 space-y-3">
+        <p class="text-sm text-fg2 leading-relaxed">${m.desc}</p>
+        <div class="flex items-center gap-3 p-3 bg-bg rounded-xl">
+          <div class="w-12 h-12 rounded-lg bg-jade/10 flex items-center justify-center text-xl flex-shrink-0">💎</div>
+          <div><p class="text-sm font-medium">${m.artifact}</p><p class="text-xs text-fg3">${m.material} · ${m.period}</p></div>
+        </div>
+        <p class="text-[11px] text-fg3 text-center">上滑查看知识拓展 →</p>
+      </div>
+    </div>
+    <div class="fixed inset-0 z-[899] bg-black/40" onclick="closeNodeSheet()"></div>`;
+}
+
+function closeNodeSheet() { selectedNode = null; document.getElementById('nodeSheet').innerHTML = ''; }
+
+function setTimeline(year) {
+  currentYear = year;
+  document.getElementById('timeSlider').value = year;
+  updateYearLabel();
+  updateTimelineEvents();
+  updateEventStrip();
+}
+
+function stepTimeline(delta) {
+  setTimeline(Math.max(-2000, Math.min(1800, currentYear + delta)));
+}
+
+function togglePlay() {
+  playing = !playing;
+  document.getElementById('playBtn').style.background = playing ? '#dc2626' : '#4ade80';
+  document.getElementById('playBtn').textContent = playing ? '⏸' : '▶';
+  if (playing) { playTimer = setInterval(() => { if (currentYear >= 1800) { togglePlay(); return; } stepTimeline(100); }, 300); }
+  else { clearInterval(playTimer); }
+}
+
+function updateYearLabel() {
+  const el = document.getElementById('yearLabel');
+  if (!el) return;
+  if (currentYear < 0) el.textContent = `公元前 ${Math.abs(currentYear)} 年`;
+  else if (currentYear === 0) el.textContent = '公元元年';
+  else el.textContent = `公元 ${currentYear} 年`;
+}
+
+function updateTimelineEvents() {
+  if (!eventLayerGroup || !mapInstance) return;
+  eventLayerGroup.clearLayers();
+  TIMELINE_EVENTS.forEach(evt => {
+    if (evt.year <= currentYear && currentYear - evt.year <= 500) {
+      const rc = ROUTE_DATA[evt.routeId]?.color?.line || '#4ade80';
+      const m = L.marker(evt.latlng, {
+        icon: L.divIcon({html:`<div style="width:14px;height:14px;border-radius:50%;background:${rc};border:3px solid #fff;box-shadow:0 0 10px ${rc}44;transform:scale(1.4)"></div>`,iconSize:[14,14],iconAnchor:[7,7]})
+      }).addTo(eventLayerGroup);
+      m.bindPopup(`<div style="font-family:'Noto Sans SC',sans-serif"><b style="color:#f5f5f4">${evt.icon} ${evt.title}</b><br><span style="font-size:10px;color:#a8a29e">${evt.label}</span><br><p style="font-size:11px;color:#a8a29e;margin-top:4px">${evt.summary}</p></div>`,{maxWidth:240});
+    }
+  });
+}
+
+function updateEventStrip() {
+  const el = document.getElementById('eventStrip');
+  if (!el) return;
+  const visible = TIMELINE_EVENTS.filter(e => e.year <= currentYear).slice(-8);
+  el.innerHTML = visible.map(e => `<button onclick="setTimeline(${e.year});if(mapInstance)mapInstance.flyTo([${e.latlng[0]},${e.latlng[1]}],6,{duration:1})" class="flex-shrink-0 bg-card border border-border rounded-lg p-2 text-left max-w-[180px] hover:border-jade/30 transition-colors"><span class="text-sm">${e.icon}</span><p class="text-[10px] text-fg2 font-medium mt-1 line-clamp-1">${e.title}</p><p class="text-[9px] text-fg3">${e.label}</p></button>`).join('');
+}
+
+// ═══════════════════════════════════════
+// TAB 3 — STORY GENERATOR
+// ═══════════════════════════════════════
+function renderStoryTab() {
+  const container = document.getElementById('storyContent');
+  if (!currentStory) {
+    container.innerHTML = `
+      <div class="flex gap-2">
+        <input id="storyKeyword" placeholder="输入典故关键词…" maxlength="30" class="flex-1 px-4 py-3 bg-card border border-border rounded-xl text-fg1 placeholder:text-fg3 text-sm focus:border-jade/50 transition-colors"/>
+        <button onclick="doGenerateStory()" class="px-5 py-3 bg-jade text-black font-medium rounded-xl transition-all text-sm active:scale-95">搜索</button>
+      </div>
+      <div><h3 class="text-xs text-fg3 mb-2.5 font-medium">热门典故 · 一键生成</h3>
+      <div class="grid grid-cols-3 gap-2">${PRESETS.map(p => `<button onclick="doGenerateStory('${p.keyword}')" class="p-3 bg-card border border-border rounded-xl text-center hover:border-jade/40 active:scale-[.97] transition-all"><p class="font-display font-bold text-sm">${p.keyword}</p><p class="text-[10px] text-fg3 mt-1 line-clamp-1">${p.explanation}</p></button>`).join('')}</div></div>
+      <button onclick="doGenerateStory(PRESETS[Math.floor(Math.random()*PRESETS.length)].keyword)" class="w-full py-3 border border-gold/40 text-gold font-medium rounded-xl text-sm active:scale-[.98] transition-all">🎲 随机探索一个典故</button>`;
+  } else {
+    renderStoryResult();
+  }
+}
+
+async function doGenerateStory(kw) {
+  const keyword = kw || document.getElementById('storyKeyword')?.value?.trim();
+  if (!keyword) return;
+  const container = document.getElementById('storyContent');
+  container.innerHTML = `<div class="flex flex-col items-center justify-center py-20 gap-6"><div class="relative w-20 h-20"><svg class="spinner w-full h-full text-jade" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" stroke-dasharray="8 6" stroke-linecap="round" opacity=".3"/><circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="2" stroke-dasharray="90 120" stroke-linecap="round" stroke-dashoffset="30"/></svg></div><p class="font-display text-fg2 text-lg animate-pulse">翻阅千年典籍…</p><p class="text-fg3 text-xs">正在生成典故</p></div>`;
+
+  // Try AI story generation via SiliconFlow LLM (only when the user supplied a key)
+  let story = null;
+  if (hasKey()) {
+    try {
+      const llmRes = await fetch('https://api.siliconflow.cn/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${SILICONFLOW_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'Qwen/Qwen2.5-7B-Instruct',
+          messages: [{role:'system',content:'你是精通中国玉文化和古典文献的专家。根据关键词返回JSON: {"title":"2-6字标题","title_en":"英文","explanation":"80字以内释义","source":"经典出处","source_text":"原文引用(15字以内)"}。只返回JSON。'},
+                     {role:'user',content:keyword}],
+          temperature: 0.7, max_tokens: 300
+        }),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (llmRes.ok) {
+        const d = await llmRes.json();
+        let content = d?.choices?.[0]?.message?.content || '';
+        if (content.startsWith('```')) content = content.split('\n').slice(1).join('\n').replace(/```$/,'');
+        story = JSON.parse(content);
+        story.keyword = keyword; story.generated = true;
+      }
+    } catch(e) { console.warn('AI story generation failed:', e); }
+  }
+
+  // Fallback: preset matching
+  if (!story) {
+    story = PRESETS.find(p => p.keyword === keyword);
+    if (!story) story = {keyword,title:keyword,title_en:keyword,explanation:`「${keyword}」是中国玉文化中的经典典故，蕴含古人对美玉的崇敬与哲思。玉象征仁、义、智、勇、洁五德。`,source:'玉文化典故',source_text:'玉者，石之美者也，有五德。'};
+    story.generated = false;
+  }
+
+  // Try AI illustration (skipped when no key — text card still renders)
+  if (hasKey()) {
+    try {
+      const illPrompt = `A vividly colorful Chinese ink and color painting for the story "${story.title||keyword}". Rich traditional Chinese color palette. Elegant figures, jade artifacts, ornate setting. Full color. Square format.`;
+      const illRes = await fetch(IMAGE_API, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${SILICONFLOW_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: IMAGE_MODEL, prompt: illPrompt, n: 1, size: '1024x1024' }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (illRes.ok) {
+        const d = await illRes.json();
+        const imgUrl = d?.data?.[0]?.url;
+        if (imgUrl) {
+          const imgRes = await fetch(imgUrl);
+          const blob = await imgRes.blob();
+          story.illustration_url = URL.createObjectURL(blob);
+        }
+      }
+    } catch(e) { console.warn('AI illustration failed:', e); }
+  }
+
+  currentStory = story;
+  renderStoryResult();
+  showToast(story.generated ? 'AI已生成典故 ✨' : '已匹配预设典故');
+}
+
+function renderStoryResult() {
+  if (!currentStory) return;
+  const s = currentStory;
+  const container = document.getElementById('storyContent');
+  container.innerHTML = `
+    <div class="space-y-4 flex flex-col items-center">
+      <div id="storyCardCapture" class="card-capture">
+        <div class="card-inner">
+          <div class="h-56 overflow-hidden bg-bg flex items-center justify-center" id="illustrationBox">
+            ${s.illustration_url ? `<img src="${s.illustration_url}" alt="" class="w-full h-full object-cover" crossorigin="anonymous" onerror="this.style.display='none';document.getElementById('storyIllustration').style.display='block';drawStoryIllustration(currentStory)"/>` : ''}
+            <canvas id="storyIllustration" width="420" height="224" style="${s.illustration_url?'display:none':''}"></canvas>
+          </div>
+          <div class="px-6 pt-5 pb-2 text-center">
+            <h2 class="font-display text-2xl font-bold">${s.title}</h2>
+            <p class="text-xs text-fg3 mt-1">${s.title_en||''}</p>
+          </div>
+          <div class="flex items-center gap-2 px-6 pb-4"><span class="flex-1 h-px bg-border"></span><span class="w-2 h-2 rounded-full bg-jade/60"></span><span class="flex-1 h-px bg-border"></span></div>
+          <div class="px-6 pb-5 text-center"><p class="font-display text-sm leading-relaxed text-fg2">${s.explanation}</p></div>
+          <div class="px-6 pb-5 text-center space-y-2"><span class="inline-block px-3 py-1 border border-seal/40 text-seal text-xs font-calligraphy rounded" style="transform:rotate(-2deg)">${s.source}</span><p class="font-display text-sm text-fg3 italic">"${s.source_text}"</p></div>
+          <div class="h-1 bg-gradient-to-r from-jade/20 via-jade/50 to-jade/20"></div>
+        </div>
+      </div>
+      <!-- Knowledge extension -->
+      <div class="bg-card border border-border rounded-xl p-4 space-y-2">
+        <h4 class="text-xs font-medium text-gold">📖 知识拓展</h4>
+        <p class="text-sm text-fg2">这是"<span class="text-jade font-medium">${s.title}</span>"典故在<span class="text-gold font-medium">${s.source}</span>中的记载。</p>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <a href="https://so.gushiwen.cn/search.aspx?value=${encodeURIComponent(s.source)}" target="_blank" rel="noopener" class="px-3 py-1.5 bg-bg border border-border rounded-lg text-fg2 hover:border-jade/40 transition-colors">查看《${s.source.replace(/[《》]/g,'')}》全文 →</a>
+          <button onclick="doGenerateStory('君子佩玉')" class="px-3 py-1.5 bg-bg border border-border rounded-lg text-fg2 hover:border-jade/40 transition-colors">相关典故：玉有五德</button>
+        </div>
+      </div>
+      <!-- Actions -->
+      <div class="flex items-center gap-2 justify-center flex-wrap">
+        <button onclick="saveStoryCard(this)" class="flex items-center gap-2 px-5 py-2.5 bg-jade text-black font-medium rounded-xl text-sm active:scale-95 transition-transform"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> <span class="btn-label">保存图片</span></button>
+        <button onclick="shareStory()" class="flex items-center gap-2 px-5 py-2.5 border border-border text-fg2 rounded-xl text-sm active:scale-95 transition-transform">分享卡片</button>
+        <button onclick="currentStory=null;renderStoryTab()" class="text-fg3 text-sm underline underline-offset-4">换一个典故</button>
+      </div>
+    </div>`;
+  // Draw illustration
+  drawStoryIllustration(s);
+  // Add ripple to buttons
+  container.querySelectorAll('button').forEach(b => addRipple(b));
+}
+
+function drawStoryIllustration(story) {
+  const canvas = document.getElementById('storyIllustration');
+  if (!canvas) return;
+  const W = 420, H = 224;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#2a2824'; ctx.fillRect(0, 0, W, H);
+  // Moon
+  const cx = 210, cy = 100, moonR = 70;
+  for (let r = moonR; r > 5; r -= 3) {
+    const a = 1 - r/moonR;
+    ctx.fillStyle = `rgba(230,225,215,${a*.12})`;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  }
+  // Mountains
+  [[170,60,360],[190,90,480],[180,50,300]].forEach(([baseY,h,w]) => {
+    ctx.fillStyle = 'rgba(80,75,68,.6)'; ctx.beginPath();
+    ctx.moveTo((W-w)/2, H);
+    for (let i = 0; i <= 40; i++) {
+      const x = (W-w)/2 + w*i/40;
+      const y = baseY - h*(.4+.6*Math.sin(i*Math.PI/40)) + 8*Math.sin(i*7*Math.PI/40)*(1-i/40);
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo((W+w)/2, H); ctx.closePath(); ctx.fill();
+  });
+  // Pine branch
+  ctx.strokeStyle = 'rgba(100,95,85,.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(100, 160); ctx.quadraticCurveTo(115, 120, 125, 100); ctx.stroke();
+  for (let i = 0; i < 6; i++) {
+    const angle = -0.8 + i * .3;
+    ctx.beginPath(); ctx.moveTo(112+i*2, 135-i*5);
+    ctx.lineTo(112+i*2 + 18*Math.cos(angle), 135-i*5 + 18*Math.sin(angle)); ctx.stroke();
+  }
+  // Jade bi disc
+  ctx.strokeStyle = 'rgba(74,222,128,.5)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(310, 150, 22, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(310, 150, 5, 0, Math.PI*2);
+  ctx.fillStyle = '#2a2824'; ctx.fill(); ctx.stroke();
+  // Seal stamp
+  ctx.fillStyle = '#dc2626'; ctx.fillRect(340, 170, 35, 35);
+  ctx.fillStyle = '#b91c1c'; ctx.fillRect(345, 175, 10, 10);
+  ctx.fillStyle = '#b91c1c'; ctx.fillRect(355, 175, 10, 10);
+  ctx.fillStyle = '#b91c1c'; ctx.fillRect(345, 185, 10, 10);
+  ctx.fillStyle = '#b91c1c'; ctx.fillRect(355, 185, 10, 10);
+}
+
+async function saveStoryCard(btn) {
+  const el = document.getElementById('storyCardCapture');
+  if (!el) return;
+  // Show loading on button
+  const label = btn?.querySelector('.btn-label');
+  const origText = label?.textContent || '';
+  if (label) label.textContent = '生成中...';
+  btn && (btn.disabled = true);
+  try {
+    const dataUrl = await htmlToImage.toPng(el, {quality:.9,pixelRatio:1});
+    const a = document.createElement('a'); a.href = dataUrl; a.download = `jade-story-${currentStory?.title||'card'}.png`; a.click();
+    showToast('已保存');
+  } catch(e) { showToast('保存失败，请重试'); }
+  if (label) label.textContent = origText;
+  btn && (btn.disabled = false);
+}
+
+function shareStory() {
+  if (!currentStory) return;
+  const text = `【玉文化典故】${currentStory.title}\n\n${currentStory.explanation}\n\n——${currentStory.source}\n"${currentStory.source_text}"`;
+  const modal = document.getElementById('modalContainer');
+  modal.innerHTML = `
+    <div class="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onclick="if(event.target===this)document.getElementById('modalContainer').innerHTML=''">
+      <div class="bg-card border border-border rounded-t-2xl sm:rounded-2xl max-w-sm w-full p-6 space-y-4" style="animation:slideUp .3s ease-out;padding-bottom:calc(1.5rem + env(safe-area-inset-bottom,12px))">
+        <div class="flex items-center justify-between"><h3 class="font-display font-bold">分享典故</h3><button onclick="document.getElementById('modalContainer').innerHTML=''" class="text-fg3 hover:text-fg2">✕</button></div>
+        <div class="p-4 bg-bg rounded-xl text-sm text-fg2 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-line">${text}</div>
+        <button onclick="copyStoryText()" class="w-full py-3 bg-jade text-black rounded-xl font-medium text-sm active:scale-95 transition-transform">复制典故文字</button>
+        <p class="text-[11px] text-fg3 text-center">可粘贴至微信/小红书分享</p>
+      </div></div>`;
+}
+
+function copyStoryText() {
+  if (!currentStory) return;
+  const text = `【玉文化典故】${currentStory.title}\n\n${currentStory.explanation}\n\n——${currentStory.source}\n"${currentStory.source_text}"`;
+  navigator.clipboard.writeText(text).then(() => { showToast('已复制，可粘贴至微信/小红书'); document.getElementById('modalContainer').innerHTML = ''; }).catch(() => showToast('复制失败'));
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  updateKeyDot();
+  renderDynastyTab();
+  initSilkRoadUI();
+  renderRouteSwitcher();
+  renderStoryTab();
+});
+</script>
+</body>
+</html>

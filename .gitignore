@@ -1,0 +1,34 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# ── 密钥：只提交 .env.example ──
+.env
+.env.*
+!.env.example
+
+# ── Node ──
+node_modules/
+dist/
+.vite/
+
+# ── 运行时产物（生成的图片、上传件）──
+uploads/
+results/
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 本地临时 ──
+.tmp_check/
+*.log
+
+# ── 本地工具数据 ──
+.workbuddy-ai/

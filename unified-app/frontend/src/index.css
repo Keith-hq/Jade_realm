@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+  input, button, select { outline: none; }
+}
+
+/* ── Water ripple effect ── */
+.ripple-container { position: relative; overflow: hidden; }
+.ripple-effect {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,222,128,.35) 0%, rgba(74,222,128,0) 70%);
+  transform: scale(0); animation: rippleAnim .45s ease-out forwards; pointer-events: none;
+}
+@keyframes rippleAnim { to { transform: scale(2.5); opacity: 0; } }
+
+/* ── Tab bar ── */
+.tab-bar { padding-bottom: env(safe-area-inset-bottom, 8px); }
+.tab-btn { -webkit-tap-highlight-color: transparent; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* ── Leaflet dark overrides ── */
+.leaflet-container { background: #1a1a1a !important; }
+.leaflet-control-zoom a { background: #262626 !important; color: #f5f5f4 !important; border-color: #333 !important; }
+.leaflet-popup-content-wrapper { background: #262626 !important; color: #f5f5f4 !important; border-radius: 12px !important; border: 1px solid #333 !important; }
+.leaflet-popup-tip { background: #262626 !important; }
+.leaflet-popup-close-button { color: #a8a29e !important; }
+
+/* ── Before/After slider ── */
+.ba-slider-handle {
+  width: 44px; height: 44px; background: #fff; border-radius: 50%;
+  box-shadow: 0 2px 12px rgba(0,0,0,.5); cursor: ew-resize;
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+
+/* ── Story card for html-to-image ── */
+.card-capture { max-width: 420px; width: 100%; margin: 0 auto; background: #1a1a1a; position: relative; }
+.card-capture .card-inner { background: #262626; border: 1px solid #333; border-radius: 16px; overflow: hidden; }
+
+/* ── Toast animation ── */
+@keyframes toastIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes toastOut { from { transform: translateY(0); opacity: 1; } to { transform: translateY(20px); opacity: 0; } }
+.toast-enter { animation: toastIn .3s ease-out forwards; }
+.toast-exit { animation: toastOut .3s ease-in forwards; }
+
+/* ── Loading spinner ── */
+@keyframes jadeSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.jade-spinner { animation: jadeSpin 1.2s linear infinite; }
+
+/* ── Timeline slider dark ── */
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; background: #333; outline: none; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #4ade80; border: 3px solid #1a1a1a; cursor: grab; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #4ade80; border: 3px solid #1a1a1a; cursor: grab; }
+
+/* ── Map event markers ── */
+.event-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 8px rgba(0,0,0,.5); transition: transform .2s; }
+.event-dot.active { transform: scale(1.5); }
+
+/* ── Audio player bar ── */
+.audio-progress { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; background: #333; outline: none; }
+.audio-progress::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #4ade80; }
+
+/* ── Safe area ── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
